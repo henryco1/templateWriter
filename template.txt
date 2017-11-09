@@ -1,0 +1,5 @@
+recipient = Jake Peralta
+thankyou_subject = catching bad guys
+followup_activity1 = dates
+followup_activity2 = criminal investigations
+followup_event1 = meetup
