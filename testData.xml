@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jobApplicationData>
+<templatedata name ="TestCase1">
+<description>HELLO_WORLD</description>
+</templatedata>
+<templatedata name ="TestCase2">
+<description>HELLO_WORLD_AGAIN<description> 
+</description>
+</templatedata>
+</jobApplicationData>

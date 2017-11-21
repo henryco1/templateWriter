@@ -3,7 +3,6 @@ import sys
 # XML
 from lxml import etree as ET
 from lxml import html as HT
-from io import StringIO
 
 from PyQt5 import QtWidgets
 #PYQT5 QMainWindow, QApplication, QAction, QFontComboBox, QSpinBox, QTextEdit, QMessageBox
@@ -15,13 +14,14 @@ from PyQt5 import QtPrintSupport
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt
 
-from ext import *
+# from ext import *
 
 import os 
 import imp
 import re
+import string
 
-class Main(QtWidgets.QMainWindow):
+class TemplateWriter(QtWidgets.QMainWindow):
 
     def __init__(self, parent = None):
         QtWidgets.QMainWindow.__init__(self,parent)
@@ -30,6 +30,8 @@ class Main(QtWidgets.QMainWindow):
 
         self.filenameOpen = ""
         self.filenameSave = ""
+
+        self.templateDict = {}
 
         self.initUI()
 
@@ -51,6 +53,11 @@ class Main(QtWidgets.QMainWindow):
         self.saveAction.setStatusTip("Save document")
         self.saveAction.setShortcut("Ctrl+S")
         self.saveAction.triggered.connect(self.save)
+
+        self.pdfAction = QtWidgets.QAction("Save to PDF", self)
+        self.pdfAction.setStatusTip("Save to PDF")
+        self.pdfAction.setShortcut("Ctrl+Shift+S")
+        self.pdfAction.triggered.connect(self.saveToPDF)
 
         self.printAction = QtWidgets.QAction(QtGui.QIcon("icons/print.png"),"Print document",self)
         self.printAction.setStatusTip("Print document")
@@ -95,7 +102,7 @@ class Main(QtWidgets.QMainWindow):
         self.getSelectedTxtAction = QtWidgets.QAction(QtGui.QIcon("icons/reorder.png"),"Get templates",self)
         self.getSelectedTxtAction.setStatusTip("Toggle drag and drop for reordering the template list")
         self.getSelectedTxtAction.setShortcut("Ctrl+T")
-        self.getSelectedTxtAction.triggered.connect(self.getSelectedTxt)
+        self.getSelectedTxtAction.triggered.connect(self.setTemplateTextEdit)
 
         self.templateOptionsAction = QtWidgets.QAction(QtGui.QIcon("templateOptions.png"),"Template options",self)
         self.templateOptionsAction.setStatusTip("Adjust options for user defined template variables")
@@ -147,8 +154,8 @@ class Main(QtWidgets.QMainWindow):
 
         # sets the default font in the fontbox and the textedit widget
         # self.templateDisplay.setCurrentFont(QtGui.QFont('Times New Roman'))
-        # fontBox.setCurrentFont(QtGui.QFont('Times New Roman'))
-        fontBox.currentFontChanged.connect(lambda font: self.finalEdit.setCurrentFont(font))
+        fontBox.setCurrentFont(QtGui.QFont('Times New Roman'))
+        # fontBox.currentFontChanged.connect(lambda font: self.finalEdit.setCurrentFont(font))
 
         fontSize = QtWidgets.QSpinBox(self)
 
@@ -235,6 +242,7 @@ class Main(QtWidgets.QMainWindow):
         file.addAction(self.newAction)
         file.addAction(self.openAction)
         file.addAction(self.saveAction)
+        file.addAction(self.pdfAction)
         file.addAction(self.printAction)
         file.addAction(self.previewAction)
         file.addAction(self.quitAction)
@@ -264,13 +272,19 @@ class Main(QtWidgets.QMainWindow):
     def initUI(self):
 
         # Contains the list of templates
-        self.skilllist = QtWidgets.QListWidget(self)
+        self.templateTextList = QtWidgets.QListWidget(self)
+        self.templateTextList.itemActivated.connect(self.setTemplateDesc)
 
         # Contains the final product
         self.templateDisplay = QtWidgets.QTextBrowser(self)
 
         # Contains text within template
         self.finalEdit = QtWidgets.QTextEdit(self)
+
+        # Default formatting
+        self.templateDisplay.setCurrentFont(QtGui.QFont('Times New Roman'))
+        self.finalEdit.setCurrentFont(QtGui.QFont('Times New Roman'))
+        self.finalEdit.setWordWrapMode(1)
 
         self.initToolbar()
         self.initFormatbar()
@@ -283,14 +297,20 @@ class Main(QtWidgets.QMainWindow):
 
 
         self.mainSplitter = QtWidgets.QSplitter(Qt.Horizontal)
-        self.mainSplitter.addWidget(self.skilllist)
+        self.mainSplitter.addWidget(self.templateTextList)
         self.mainSplitter.addWidget(self.messageSplitter)
         self.mainSplitter.setSizes([100,500])
 
         self.setCentralWidget(self.mainSplitter)
 
         # Gets selected items on skill list to populate description text
-        self.skilllist.itemClicked.connect(self.getDesc)
+        self.templateTextList.itemClicked.connect(self.setTemplateDesc)
+
+        # Enables drag and drop mode and multiple selections
+        # 4 = self.templateTextList.InternalMove
+        self.templateTextList.setDragDropMode(4)
+        self.templateTextList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        # print(self.templateTextList.SelectionMode())
 
         # Set the tab stop width to around 33 pixels which is
         # about 8 spaces
@@ -333,49 +353,58 @@ class Main(QtWidgets.QMainWindow):
 
     def new(self):
 
-        spawn = Main(self)
+        spawn = TemplateWriter(self)
         spawn.show()
 
+    def setTemplateDict(self, dictionaryData):
+        self.templateDict = dictionaryData
+
+    def getTemplateDict(self):
+        return self.templateDict
+
     def open(self):
+        # Handles opening XML files
 
-        self.templateDict = {}
-        # Key = name of skill
-        # Value = template text for skill
+        tempDict = {}
 
-        self.listOfDesc = []
-        # List of skill descriptions used to easily access skill templates
-
-        # Get filename 
+        # Gets filename and its path
         # PYQT5 Returns a tuple in PyQt5, we only need the filename
         self.filenameOpen = QtWidgets.QFileDialog.getOpenFileName(self, 'Open File',".","(*.xml)")[0]
 
         if self.filenameOpen:
-            fname = str(self.filenameOpen)
-            tree = HT.parse(fname)
-            root = tree.getroot()
+            tempDict = self.parseXML(self.filenameOpen)
+            self.setTemplateDict(tempDict)
 
-            self.templateDict = self.getTemplateData(root)
+            self.setListData(tempDict)
+            self.templateDisplay.clear()
+            self.templateTextList.sortItems()
 
-            # Adds list of skills to the checkbox list
-            for key in self.templateDict:
-                self.skilllist.addItem(key)
+            # self.templateDict = self.parseXML(self.filenameOpen)
+            # self.setListData(self.templateDict)
 
-            # Enables drag and drop mode and multiple selections
-            self.skilllist.setDragDropMode(self.skilllist.InternalMove)
-            self.skilllist.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+    def parseXML(self, filePath):
+        # Using the text from the XML file, this function parses XML into a string
 
+        tempDict = {}
+        # Key = name of skill
+        # Value = template text for skill
 
-        for value in self.templateDict.items():
-            # Adds the description to the dictionary and then adds the text to the textbox
-            # note that value will be a tuple
-            # tuple[0] will output the data in the proper type
-            self.listOfDesc.append(value[0])
-            self.templateDisplay.setText(value[0])
+        fname = str(filePath)
+        tree = HT.parse(fname)
+        root = tree.getroot()
+        temp = str(ET.tostring(root), 'utf-8')
 
-        # sets the font for the newly imported text
-        # self.templateDisplay.setCurrentFont(QtGui.QFont('Times New Roman'))
+        tempDict = self.getTemplateData(root)
+        print(tempDict)
+        return tempDict
+
+    def setListData(self, listData):
+        # Adds list of skills to the checkbox list
+        for key in listData:
+            self.templateTextList.addItem(key)
 
     def getTemplateData(self, fileTxt): 
+        # handler that extracts data from XML file into a dictionary
 
         outputDict = {}
         desc = ""
@@ -385,49 +414,56 @@ class Main(QtWidgets.QMainWindow):
             if element.tag == 'description':
                 # ported Python2 to Python3 by encoding in unicode
                 desc = str(ET.tostring(element, pretty_print=True), 'utf-8')
-                print(desc)
+
+                # remove xml tags so the string can be read as html correctly
+                desc = desc.replace('<description>', '')
+                desc = desc.replace('</description>', '')
 
             # print(element.tag)
 
             if element.tag == 'templatedata':
                 name = element.get("name")
-                print(name)
+                # print(name)
 
             outputDict[name] = desc
 
         return outputDict
 
-    def getDesc(self):
+    def setTemplateDesc(self):
 
-        # Gets descriptions of items on skill list
+        # This function is called when the user selects an item on the template list
+        # It populates the description window with the text that corresponds to the selected
+        # item on the template list
 
-        # clear
-        self.templateDisplay.setText("")
+        self.templateDisplay.clear()
 
-        value = self.skilllist.currentItem().text()
-        skillDesc = self.templateDict[str(value)]
+        tempDict = self.getTemplateDict()
+
+        value = self.templateTextList.currentItem().text()
+        skillDesc = tempDict[str(value)]
         self.templateDisplay.insertHtml(skillDesc)
 
-    def getSelectedTxt(self):
+    def setTemplateTextEdit(self):
 
-        # Outputs the user's selected text on in the textBox
+        # Outputs the user's selected text in the textBox
         outputStr = ""
+        tempDict = self.getTemplateDict()
 
-        # clear
-        self.finalEdit.setText("")
+        self.finalEdit.clear()
 
-        for i in range(self.skilllist.count()):
-            item = self.skilllist.item(i)
+        for i in range(self.templateTextList.count()):
+            item = self.templateTextList.item(i)
+            print("The selected item is " + item.text())
             if item.isSelected() == True:
                 listKey = str(item.text())
-                outputStr  += self.templateDict[listKey]
+                outputStr  += tempDict[listKey]
 
         outputStr = self.parser(outputStr)
+        print(outputStr)
         self.finalEdit.insertHtml(outputStr)
 
     def save(self):
         # Only open dialog if there is no filenameSave yet
-
 
         if not self.filenameSave:
             self.filenameSave = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File')[0]
@@ -438,6 +474,15 @@ class Main(QtWidgets.QMainWindow):
               file.write(self.finalEdit.toHtml())
               # print(self.filenameSave)
 
+    def saveToPDF(self):
+        filename = QtWidgets.QFileDialog.getSaveFileName(self, 'Save to PDF')
+        if filename:
+            printer = QtPrintSupport.QPrinter(QtPrintSupport.QPrinter.HighResolution)
+            printer.setPageSize(QtPrintSupport.QPrinter.A4)
+            printer.setColorMode(QtPrintSupport.QPrinter.Color)
+            printer.setOutputFormat(QtPrintSupport.QPrinter.PdfFormat)
+            printer.setOutputFileName(filename[0])
+            self.finalEdit.document().print_(printer)
 
     def preview(self):
         # Open preview dialog
@@ -601,12 +646,16 @@ class Main(QtWidgets.QMainWindow):
 
     def parser(self, inputString):
 
-        # parses a string based on a predefined user input.
+        # This functino does two things:
+        # Parse the string for template variables to change into the user's input
+        # Parse the string for certain hardcoded strings that must be changed to something else
 
         configData = self.readConfig()
 
-        inputString = inputString.replace("{newline}", "\n")
-        inputString = inputString.replace("{tab}", "\t")
+        # inputString = inputString.replace("{newline}", "\n")
+        # inputString = inputString.replace("{tab}", "\t")
+        # inputString = inputString.replace("&amp;nbsp", "&nbsp;")
+
         for key in configData:
             inputString = inputString.replace("{" + str(key) + "}", str(configData[key]))
 
@@ -630,7 +679,7 @@ class Main(QtWidgets.QMainWindow):
         self.table.setRowCount(len(templateData.keys()))
         self.table.setColumnCount(1)
 
-        # set data
+        # set data for template var editing table
         for key in templateData:
             self.table.setItem(count, 0, QtWidgets.QTableWidgetItem(templateData[key]))
             keyLabels = keyLabels + str(key) + ';'
@@ -669,14 +718,14 @@ class Main(QtWidgets.QMainWindow):
     def templateSettingsOkayButton(self, keys):
 
         # When the user presses okay, their input on the table is saved to the file so that it can
-        # be used in the template
+        # be used to substitute the user's input for the template variables
 
         configFile = open(self.config_path, 'w')
 
         for i in range(0, self.table.rowCount()):
             item = self.table.item(i, 0)
             outputStr = str(keys[i]) + ' = ' + item.text() + '\n'
-            print(outputStr)
+            # print(outputStr)
             configFile.write(outputStr)
 
         configFile.close()
@@ -706,7 +755,7 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     # QtGui.QApplication.setFont(QtGui.QFont('Times New Roman'))
 
-    main = Main()
+    main = TemplateWriter()
     main.show()
 
     sys.exit(app.exec_())
