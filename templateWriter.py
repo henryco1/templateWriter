@@ -1,20 +1,14 @@
 import sys
 
-# XML
 from lxml import etree as ET
 from lxml import html as HT
 
 from PyQt5 import QtWidgets
-#PYQT5 QMainWindow, QApplication, QAction, QFontComboBox, QSpinBox, QTextEdit, QMessageBox
-#PYQT5 QFileDialog, QColorDialog, QDialog
 
 from PyQt5 import QtPrintSupport
-#PYQT5 QPrintPreviewDialog, QPrintDialog
 
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt
-
-# from ext import *
 
 import os 
 import imp
@@ -35,10 +29,7 @@ class TemplateWriter(QtWidgets.QMainWindow):
 
         self.initUI()
 
-        # self.document = Document()
-
     def initToolbar(self):
-
         self.newAction = QtWidgets.QAction(QtGui.QIcon("icons/new.png"),"New",self)
         self.newAction.setShortcut("Ctrl+N")
         self.newAction.setStatusTip("Create a new document from scratch.")
@@ -99,8 +90,8 @@ class TemplateWriter(QtWidgets.QMainWindow):
         self.redoAction.setShortcut("Ctrl+Y")
         self.redoAction.triggered.connect(self.finalEdit.redo)
 
-        self.getSelectedTxtAction = QtWidgets.QAction(QtGui.QIcon("icons/reorder.png"),"Get templates",self)
-        self.getSelectedTxtAction.setStatusTip("Toggle drag and drop for reordering the template list")
+        self.getSelectedTxtAction = QtWidgets.QAction(QtGui.QIcon("icons/reorder.png"),"Compile templates",self)
+        self.getSelectedTxtAction.setStatusTip("Compiles the selected items from the list onto the text editor and displays them in the order they are arranged")
         self.getSelectedTxtAction.setShortcut("Ctrl+T")
         self.getSelectedTxtAction.triggered.connect(self.setTemplateTextEdit)
 
@@ -149,7 +140,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
         self.addToolBarBreak()
 
     def initFormatbar(self):
-        
         fontBox = QtWidgets.QFontComboBox(self)
 
         # sets the default font in the fontbox and the textedit widget
@@ -231,7 +221,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
 
 
     def initMenubar(self):
-
         menubar = self.menuBar()
 
         file = menubar.addMenu("&File")
@@ -270,15 +259,14 @@ class TemplateWriter(QtWidgets.QMainWindow):
         view.addAction(statusbarAction)
 
     def initUI(self):
-
-        # Contains the list of templates
+        # Contains the list of templates that the user can select
         self.templateTextList = QtWidgets.QListWidget(self)
         self.templateTextList.itemActivated.connect(self.setTemplateDesc)
 
-        # Contains the final product
+        # When the user selects a template from the list, a description of the template appears on this display
         self.templateDisplay = QtWidgets.QTextBrowser(self)
 
-        # Contains text within template
+        # A box that contains the templates compiled together
         self.finalEdit = QtWidgets.QTextEdit(self)
 
         # Default formatting
@@ -310,7 +298,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
         # 4 = self.templateTextList.InternalMove
         self.templateTextList.setDragDropMode(4)
         self.templateTextList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        # print(self.templateTextList.SelectionMode())
 
         # Set the tab stop width to around 33 pixels which is
         # about 8 spaces
@@ -331,28 +318,24 @@ class TemplateWriter(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon("icons/icon.png"))
 
     def toggleToolbar(self):
-
         state = self.toolbar.isVisible()
 
         # Set the visibility to its inverse
         self.toolbar.setVisible(not state)
 
     def toggleFormatbar(self):
-
         state = self.formatbar.isVisible()
 
         # Set the visibility to its inverse
         self.formatbar.setVisible(not state)
 
     def toggleStatusbar(self):
-
         state = self.statusbar.isVisible()
 
         # Set the visibility to its inverse
         self.statusbar.setVisible(not state)
 
     def new(self):
-
         spawn = TemplateWriter(self)
         spawn.show()
 
@@ -379,11 +362,8 @@ class TemplateWriter(QtWidgets.QMainWindow):
             self.templateDisplay.clear()
             self.templateTextList.sortItems()
 
-            # self.templateDict = self.parseXML(self.filenameOpen)
-            # self.setListData(self.templateDict)
-
     def parseXML(self, filePath):
-        # Using the text from the XML file, this function parses XML into a string
+        # Using the text from the XML file, this function parses XML into a dictionary
 
         tempDict = {}
         # Key = name of skill
@@ -392,16 +372,10 @@ class TemplateWriter(QtWidgets.QMainWindow):
         fname = str(filePath)
         tree = HT.parse(fname)
         root = tree.getroot()
-        temp = str(ET.tostring(root), 'utf-8')
 
         tempDict = self.getTemplateData(root)
         print(tempDict)
         return tempDict
-
-    def setListData(self, listData):
-        # Adds list of skills to the checkbox list
-        for key in listData:
-            self.templateTextList.addItem(key)
 
     def getTemplateData(self, fileTxt): 
         # handler that extracts data from XML file into a dictionary
@@ -419,18 +393,19 @@ class TemplateWriter(QtWidgets.QMainWindow):
                 desc = desc.replace('<description>', '')
                 desc = desc.replace('</description>', '')
 
-            # print(element.tag)
-
             if element.tag == 'templatedata':
                 name = element.get("name")
-                # print(name)
 
             outputDict[name] = desc
 
         return outputDict
 
-    def setTemplateDesc(self):
+    def setListData(self, listData):
+        # Adds items to list of templates that the user can select
+        for key in listData:
+            self.templateTextList.addItem(key)
 
+    def setTemplateDesc(self):
         # This function is called when the user selects an item on the template list
         # It populates the description window with the text that corresponds to the selected
         # item on the template list
@@ -444,8 +419,7 @@ class TemplateWriter(QtWidgets.QMainWindow):
         self.templateDisplay.insertHtml(skillDesc)
 
     def setTemplateTextEdit(self):
-
-        # Outputs the user's selected text in the textBox
+        # Outputs the user's selected list items in the text edit box
         outputStr = ""
         tempDict = self.getTemplateDict()
 
@@ -464,15 +438,13 @@ class TemplateWriter(QtWidgets.QMainWindow):
 
     def save(self):
         # Only open dialog if there is no filenameSave yet
-
         if not self.filenameSave:
             self.filenameSave = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File')[0]
 
-        # We just store the contents of the text file along with the
-        # format in plain text, which Qt does in a very nice way for us
+        # Stores the contents of the saved file in plain text html.
+        # By saving as HTML, the program is able to save some of the text formating
         with open(self.filenameSave+".lyn","wt") as file:
               file.write(self.finalEdit.toHtml())
-              # print(self.filenameSave)
 
     def saveToPDF(self):
         filename = QtWidgets.QFileDialog.getSaveFileName(self, 'Save to PDF')
@@ -503,7 +475,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
     def cursorPosition(self):
         cursor = self.finalEdit.textCursor()
 
-        # Mortals like 1-indexed things
         line = cursor.blockNumber() + 1
         col = cursor.columnNumber()
 
@@ -541,13 +512,11 @@ class TemplateWriter(QtWidgets.QMainWindow):
             self.finalEdit.setFontWeight(QtGui.QFont.Bold)
 
     def italic(self):
-
         state = self.finalEdit.fontItalic()
 
         self.finalEdit.setFontItalic(not state)
 
     def underline(self):
-
         state = self.finalEdit.fontUnderline()
 
         self.finalEdit.setFontUnderline(not state)
@@ -597,7 +566,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
             cursor.insertText("\t")
 
     def handleDedent(self,cursor):
-
         cursor.movePosition(QtGui.QTextCursor.StartOfLine)
 
         # Grab the current line
@@ -619,7 +587,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
         cursor.deleteChar()
 
     def dedent(self):
-
         cursor = self.finalEdit.textCursor()
 
         if cursor.hasSelection():
@@ -645,8 +612,7 @@ class TemplateWriter(QtWidgets.QMainWindow):
             self.handleDedent(cursor)
 
     def parser(self, inputString):
-
-        # This functino does two things:
+        # This function does two things:
         # Parse the string for template variables to change into the user's input
         # Parse the string for certain hardcoded strings that must be changed to something else
 
@@ -662,7 +628,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
         return inputString
 
     def templateSettings(self):
-
         count = 0
         keylist = []
         keyLabels = ""
@@ -694,7 +659,6 @@ class TemplateWriter(QtWidgets.QMainWindow):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
 
-        # add, accept, and cancel buttons
         okayButton = QtWidgets.QPushButton('Okay', self)
         cancelButton = QtWidgets.QPushButton('Cancel', self)
 
@@ -710,13 +674,11 @@ class TemplateWriter(QtWidgets.QMainWindow):
         layout.addWidget(okayButton, 5, 1)
         layout.addWidget(cancelButton, 5, 2)
 
-        # show settings window
         self.window.setWindowTitle("Template Variable Settings")
         self.window.setGeometry(365, 400, 400, 250)
         self.window.show()
 
     def templateSettingsOkayButton(self, keys):
-
         # When the user presses okay, their input on the table is saved to the file so that it can
         # be used to substitute the user's input for the template variables
 
@@ -725,20 +687,18 @@ class TemplateWriter(QtWidgets.QMainWindow):
         for i in range(0, self.table.rowCount()):
             item = self.table.item(i, 0)
             outputStr = str(keys[i]) + ' = ' + item.text() + '\n'
-            # print(outputStr)
             configFile.write(outputStr)
 
         configFile.close()
 
     def readConfig(self):
-
         # open the template.txt file and uses regex to get the variable name and the variable value
 
         tableVals = {}
 
         configFile = open(self.config_path, 'r')
         lines = configFile.readlines()
-        lines = [line.rstrip() for line in lines] # strip \n
+        lines = [line.rstrip() for line in lines] 
         for items in lines:  
             # regex group matching
             strCheck = r'(\S+)\s*=\s*(.*)'

@@ -1,3 +1,6 @@
-position_name = Junior Software Engineer
-industry = management consulting industry
-company_name = Booz Allen Hamilton
+recipient = Jake Peralta
+thankyou_subject = catching bad guys
+thankyou_advice = detective work
+followup_activity1 = dates
+followup_activity2 = criminal investigations
+followup_event1 = meetup
